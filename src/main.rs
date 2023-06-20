@@ -1,4 +1,5 @@
-use std::rc::Rc;
+mod layout; // Import the layout module
+use layout::Layout; // Import the render function from the layout module
 
 use yew::prelude::*;
 
@@ -15,13 +16,14 @@ fn app() -> Html{
         let new_state = Model{
             value: state.value + 1
         };
+        
         set_state(state, new_state)
     };
 
     html!{
         <div>
-        <button {onclick}>{"+1"}</button>
-            <h1>{state.value}</h1>
+            <Layout />
+        
         </div>
     }
 }
