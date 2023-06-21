@@ -1,0 +1,8 @@
+[build]
+target = "index.html"
+dist = "dist"
+
+[[hooks]]
+stage = "build"
+command = "sh"
+command_arguments = ["-c", "./tailwindcss -i src/output/index.css -o src/styles/output.css"]
