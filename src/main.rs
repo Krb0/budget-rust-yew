@@ -1,5 +1,6 @@
 mod layout; 
 mod utils;
+mod components;
 mod pages;
 use pages::Router as Router;
 use yew::prelude::*;
