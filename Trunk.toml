@@ -5,4 +5,4 @@ dist = "dist"
 [[hooks]]
 stage = "build"
 command = "sh"
-command_arguments = ["-c", "./tailwindcss -i src/output/index.css -o src/styles/output.css"]
+command_arguments = ["-c", "./tailwindcss -i src/styles/index.css -o src/styles/output.css"]
