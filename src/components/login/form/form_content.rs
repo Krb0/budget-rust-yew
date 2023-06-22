@@ -1,32 +1,91 @@
-use yew::{function_component, html, Html, Properties};
-use yew_router::prelude::use_navigator;
 
+use yew::{function_component, html, Html, Properties, Callback, SubmitEvent, MouseEvent, use_node_ref, use_state};
+use yew_router::prelude::{use_navigator, Navigator};
+use web_sys::HtmlInputElement;
 use crate::{utils::navigator_redirect, pages::Route};
+use serde::{Deserialize, Serialize};
+use gloo_console::log;
+use reqwasm::http::Request;
+use reqwasm::Error;
+use serde_json;
+
+use gloo_timers::callback::Timeout;
+
+
+use crate::{components::shared::loading::Loading};
 
 #[function_component(FormContent)]
 pub fn login_form(props: &Props) -> Html {
-    let button_text: String = if props.is_login {
-        "Login".to_owned()
+    let navigator = use_navigator().unwrap();
+    let (already_registered_text, button_text, redirect) = get_static_data(props, navigator);
+    let email_input_ref = use_node_ref();
+    let password_input_ref = use_node_ref();
+
+    let loading_state = use_state(|| false);
+    let loading_state_clone = loading_state.clone();
+
+    let loading_class = if *loading_state_clone {
+        "loading-true"
     } else {
-        "Register".to_owned()
-    };
-    let already_registered_text: String = if props.is_login {
-        "You don't have an account?".to_owned()
-    } else {
-        "Already have an account?".to_owned()
+        ""
     };
 
-    let navigator = use_navigator().unwrap();
-    let route_redirect = if props.is_login {
-        Route::Register
-    } else {
-        Route::Login
+
+    let on_submit:Callback<SubmitEvent> = {
+        
+        let email_ref = email_input_ref.clone();
+        let password_ref = password_input_ref.clone();
+        let loading_state_clone_for_closure = loading_state_clone.clone();
+
+        Callback::from(move |ev:SubmitEvent| {
+            ev.prevent_default();
+            if loading_state_clone_for_closure.to_string() == "true" {
+                log!("dddd...");
+                return;
+            }
+            let loading = loading_state.clone();
+            loading.set(true);
+
+            let email = email_ref.cast::<HtmlInputElement>().unwrap().value();
+            let password = password_ref.cast::<HtmlInputElement>().unwrap().value();
+            let request_body = LoginRequestBody { username:email, password };
+            let body = serde_json::to_string(&request_body).unwrap();
+            
+            
+            wasm_bindgen_futures::spawn_local(async move {
+                    let res:Result<LoginResponse, Error> = Request::post("https://dummyjson.com/auth/login")
+                    .header("Content-Type", "application/json")
+                    .body(&body)
+                    .send()
+                    .await
+                    .unwrap()
+                    .json()
+                    .await;
+                    
+                    let timeout = Timeout::new(1_000, move || {
+                        if res.is_err() {
+                            log!("Error: {:?}");
+                            loading.set(false);
+                            return;
+                        }
+                        loading.set(false);
+                        let data = res.unwrap();
+                        log!("Name: {:?}", data.firstName);
+                    });
+                    
+                    // Since we don't plan on cancelling the timeout, call `forget`.
+                    timeout.forget();
+                    
+                    
+                    
+            });
+
+        })
     };
-    let redirect: yew::Callback<yew::MouseEvent> = navigator_redirect(navigator, route_redirect); 
     html! {
         <>
             <div class="mt-10">
-                <form action="#">
+                <form onsubmit={on_submit} autocomplete="on">
                 <div class="flex flex-col mb-6">
                     <label for="email" class="mb-1 text-xs sm:text-sm tracking-wide text-gray-600">{"E-Mail Address:"}</label>
                     <div class="relative">
@@ -36,7 +95,7 @@ pub fn login_form(props: &Props) -> Html {
                         </svg>
                     </div>
 
-                    <input id="email" type="email" name="email" class="text-sm sm:text-base placeholder-gray-500 pl-10 pr-4 rounded-lg border border-gray-400 w-full py-2 focus:outline-none focus:border-blue-400" placeholder="E-Mail Address" />
+                    <input value="kminchelle" autocomplete="email" ref={email_input_ref} id="email" type="text" name="email" class="text-sm sm:text-base placeholder-gray-500 pl-10 pr-4 rounded-lg border border-gray-400 w-full py-2 focus:outline-none focus:border-blue-400" placeholder="E-Mail Address" />
                     </div>
                 </div>
                 <div class="flex flex-col mb-6">
@@ -50,7 +109,7 @@ pub fn login_form(props: &Props) -> Html {
                         </span>
                     </div>
 
-                    <input id="password" type="password" name="password" class="text-sm sm:text-base placeholder-gray-500 pl-10 pr-4 rounded-lg border border-gray-400 w-full py-2 focus:outline-none focus:border-blue-400" placeholder="Password" />
+                    <input value="0lelplR" autocomplete="current-password" ref={password_input_ref} id="password" type="password" name="password" class="text-sm sm:text-base placeholder-gray-500 pl-10 pr-4 rounded-lg border border-gray-400 w-full py-2 focus:outline-none focus:border-blue-400" placeholder="Password" />
                     </div>
                 </div>
 
@@ -61,13 +120,11 @@ pub fn login_form(props: &Props) -> Html {
                 </div>
 
                 <div class="flex w-full">
-                    <button type="submit" class="flex items-center justify-center focus:outline-none text-white text-sm sm:text-base bg-blue-600 hover:bg-blue-700 rounded py-2 w-full transition duration-150 ease-in">
-                    <span class="mr-2 uppercase">{button_text}</span>
-                    <span>
-                        <svg class="h-6 w-6" fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24" stroke="currentColor">
-                        <path d="M13 9l3 3m0 0l-3 3m3-3H8m13 0a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
+                    <button type="submit" class={format!("flex items-center justify-center focus:outline-none text-white text-sm sm:text-base bg-blue-600 hover:bg-blue-700 rounded py-2 w-full transition duration-150 ease-in {}", loading_class)} >
+                    <span class={"mr-2 uppercase"}>  
+                            <Loading text={button_text} is_loading={loading_state_clone} />
                     </span>
+                    
                     </button>
                 </div>
                 </form>
@@ -86,7 +143,50 @@ pub fn login_form(props: &Props) -> Html {
     }
 }
 
+
 #[derive(Properties, PartialEq)]
 pub struct Props {
     pub is_login: bool,
+}
+
+
+fn get_static_data(props:&Props, navigator: Navigator) -> (String, String, Callback<MouseEvent>){
+    let button_text: String = if props.is_login {
+        "Login".to_owned()
+    } else {
+        "Register".to_owned()
+    };
+    let already_registered_text: String = if props.is_login {
+        "You don't have an account?".to_owned()
+    } else {
+        "Already have an account?".to_owned()
+    };
+
+    let route_redirect = if props.is_login {
+        Route::Register
+    } else {
+        Route::Login
+    };
+    let redirect: Callback<MouseEvent> = navigator_redirect(navigator, route_redirect); 
+
+    
+    (already_registered_text, button_text, redirect)
+}
+
+#[derive(Serialize, Deserialize)]
+struct LoginRequestBody {
+    username: String,
+    password: String,
+}
+
+#[derive(Deserialize, Debug, Clone)]
+pub struct LoginResponse {
+    id: u32,
+    username: String,
+    email: String,
+    firstName: String,
+    lastName: String,
+    gender: String,
+    image: String,
+    token: String,
 }
