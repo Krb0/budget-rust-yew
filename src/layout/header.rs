@@ -10,9 +10,9 @@ pub fn render() -> Html{
 
     let navigator = use_navigator().unwrap();
      
-    let redirect_signup = navigator_redirect(navigator.clone(), Route::Register);
-    let redirect_login = navigator_redirect(navigator.clone(), Route::Login);
-    let redirect_home = navigator_redirect(navigator.clone(), Route::Home);
+    let redirect_signup = navigator_redirect(&navigator, Route::Register);
+    let redirect_login = navigator_redirect(&navigator, Route::Login);
+    let redirect_home = navigator_redirect(&navigator, Route::Home);
 
 
     html!{

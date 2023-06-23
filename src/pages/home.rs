@@ -6,7 +6,7 @@ use crate::utils::navigator_redirect;
 use crate::pages::Route;
 #[function_component(Home)]
 pub fn home() -> Html {
-     let navigator = use_navigator().unwrap();
+     let navigator = &use_navigator().unwrap();
      
      let redirect_register = navigator_redirect(navigator, Route::Register);
     html! {

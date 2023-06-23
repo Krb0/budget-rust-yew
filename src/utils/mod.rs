@@ -1,3 +1,4 @@
+pub mod request_handler;
 use yew::{Callback, UseStateHandle, MouseEvent};
 use yew_router::prelude::Navigator;
 
@@ -10,7 +11,7 @@ pub fn _set_state<T:'static + Clone>(state: UseStateHandle<T>, new_state: T) -> 
     })
 }
 
-pub fn navigator_redirect(original_navigator: Navigator, route:Route) -> yew::Callback<MouseEvent>{
-    let navigator: Navigator = original_navigator.to_owned();
-    Callback::from(move|_: MouseEvent| navigator.push(&route))
+pub fn navigator_redirect(navigator: &Navigator, route:Route) -> yew::Callback<MouseEvent>{
+    let navigator_ref = navigator.clone(); 
+    Callback::from(move|_: MouseEvent| navigator_ref.push(&route))
 }

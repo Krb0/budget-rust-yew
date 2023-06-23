@@ -2,21 +2,16 @@
 use yew::{function_component, html, Html, Properties, Callback, SubmitEvent, MouseEvent, use_node_ref, use_state};
 use yew_router::prelude::{use_navigator, Navigator};
 use web_sys::HtmlInputElement;
-use crate::{utils::navigator_redirect, pages::Route};
+use crate::{utils::navigator_redirect,utils::request_handler::request_post, pages::Route};
 use serde::{Deserialize, Serialize};
 use gloo_console::log;
-use reqwasm::http::Request;
-use reqwasm::Error;
 use serde_json;
-
-use gloo_timers::callback::Timeout;
-
 
 use crate::{components::shared::loading::Loading};
 
 #[function_component(FormContent)]
 pub fn login_form(props: &Props) -> Html {
-    let navigator = use_navigator().unwrap();
+    let navigator = &use_navigator().unwrap();
     let (already_registered_text, button_text, redirect) = get_static_data(props, navigator);
     let email_input_ref = use_node_ref();
     let password_input_ref = use_node_ref();
@@ -32,12 +27,16 @@ pub fn login_form(props: &Props) -> Html {
 
 
     let on_submit:Callback<SubmitEvent> = {
-        
+        let navigator = navigator.clone();
         let email_ref = email_input_ref.clone();
         let password_ref = password_input_ref.clone();
         let loading_state_clone_for_closure = loading_state_clone.clone();
-
-        Callback::from(move |ev:SubmitEvent| {
+        let is_login = props.is_login.clone();
+        Callback::from(move |ev: SubmitEvent| {
+            let navigator_submit = navigator.clone();
+            let push_closure = move || {
+                let _ = navigator_submit.push(&Route::Home);
+            };
             ev.prevent_default();
             if loading_state_clone_for_closure.to_string() == "true" {
                 log!("dddd...");
@@ -46,38 +45,25 @@ pub fn login_form(props: &Props) -> Html {
             let loading = loading_state.clone();
             loading.set(true);
 
-            let email = email_ref.cast::<HtmlInputElement>().unwrap().value();
-            let password = password_ref.cast::<HtmlInputElement>().unwrap().value();
+            let email = email_ref.cast::<HtmlInputElement>().expect("Email must exist").value();
+            let password = password_ref.cast::<HtmlInputElement>().expect("Password must exist").value();
             let request_body = LoginRequestBody { username:email, password };
             let body = serde_json::to_string(&request_body).unwrap();
-            
-            
             wasm_bindgen_futures::spawn_local(async move {
-                    let res:Result<LoginResponse, Error> = Request::post("https://dummyjson.com/auth/login")
-                    .header("Content-Type", "application/json")
-                    .body(&body)
-                    .send()
-                    .await
-                    .unwrap()
-                    .json()
-                    .await;
-                    
-                    let timeout = Timeout::new(1_000, move || {
-                        if res.is_err() {
-                            log!("Error: {:?}");
-                            loading.set(false);
-                            return;
-                        }
+                let endpoint = if is_login {"https://dummyjson.com/auth/login"} else {"https://dummyjson.com/auth/signup"};
+                    let res = request_post::<LoginResponse>(&endpoint.to_string(), &body).await;
+                    if res.is_err() {
+                        log!("Error: {:?}");
                         loading.set(false);
-                        let data = res.unwrap();
-                        log!("Name: {:?}", data.firstName);
-                    });
+                        return;
+                    }
+                    loading.set(false);
+                    let data = res.unwrap();
+                   
                     
-                    // Since we don't plan on cancelling the timeout, call `forget`.
-                    timeout.forget();
-                    
-                    
-                    
+                        push_closure();
+                   
+                   log!("Name: {:?}", data.firstName);
             });
 
         })
@@ -150,7 +136,7 @@ pub struct Props {
 }
 
 
-fn get_static_data(props:&Props, navigator: Navigator) -> (String, String, Callback<MouseEvent>){
+fn get_static_data(props:&Props, navigator: &Navigator) -> (String, String, Callback<MouseEvent>){
     let button_text: String = if props.is_login {
         "Login".to_owned()
     } else {
@@ -167,7 +153,7 @@ fn get_static_data(props:&Props, navigator: Navigator) -> (String, String, Callb
     } else {
         Route::Login
     };
-    let redirect: Callback<MouseEvent> = navigator_redirect(navigator, route_redirect); 
+    let redirect: Callback<MouseEvent> = navigator_redirect(&navigator, route_redirect); 
 
     
     (already_registered_text, button_text, redirect)
